@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DASH — Indian Car Spec & Warranty Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-base:#0A0C0F;
+    --panel:#14171C;
+    --panel-light:#1B1F25;
+    --panel-border:#282D35;
+    --redline:#FF3B4E;
+    --amber:#FFB627;
+    --teal:#00E6C3;
+    --off-white:#F3EFE6;
+    --muted:#878E99;
+    --radius-sm:8px; --radius-md:14px; --radius-lg:20px;
+    --ease:cubic-bezier(.22,.9,.28,1);
+    --shadow-sm:0 2px 6px rgba(0,0,0,0.35);
+    --shadow-md:0 10px 24px rgba(0,0,0,0.45), 0 2px 6px rgba(0,0,0,0.35);
+    --shadow-lg:0 20px 48px rgba(0,0,0,0.55), 0 6px 16px rgba(0,0,0,0.4);
+    --inset-top:inset 0 1px 0 rgba(255,255,255,0.05);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:radial-gradient(ellipse at 50% -10%, #1A1D22 0%, var(--bg-base) 55%);
+    color:var(--off-white);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    overflow-x:hidden;
+    -webkit-font-smoothing:antialiased;
+    position:relative;
+  }
+  body::after{
+    content:""; position:fixed; inset:0; z-index:200; pointer-events:none; opacity:0.035; mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+  .display{font-family:'Rajdhani',sans-serif;}
+  .mono{font-family:'Share Tech Mono',monospace;}
+
+  .app{position:relative; width:100%;}
+
+  .screen{
+    position:absolute; top:0; left:0; width:100%;
+    visibility:hidden; opacity:0; pointer-events:none;
+    transition:opacity 0.24s var(--ease);
+    display:flex; flex-direction:column; align-items:center;
+    padding:36px 20px 64px;
+    z-index:1;
+  }
+  .screen.active{position:relative; visibility:visible; opacity:1; pointer-events:auto; z-index:2;}
+
+  /* ---------- IGNITION SCREEN ---------- */
+  #ignition{justify-content:center; align-items:center; min-height:100vh;}
+  .ignition-wrap{text-align:center;}
+  .ignition-eyebrow{letter-spacing:0.38em; font-size:12px; color:var(--muted); font-weight:600; margin-bottom:16px; text-transform:uppercase;}
+  .ignition-title{
+    font-size:clamp(44px,9vw,100px); font-weight:700; line-height:0.92; letter-spacing:0.005em;
+    background:linear-gradient(180deg, #ffffff 0%, #a9aeb6 100%);
+    -webkit-background-clip:text; background-clip:text; color:transparent; margin-bottom:10px;
+    text-shadow:0 2px 30px rgba(0,0,0,0.3);
+  }
+  .ignition-sub{color:var(--muted); font-size:15px; max-width:420px; margin:0 auto 46px; line-height:1.6;}
+  #startBtn{
+    position:relative; width:158px; height:158px; border-radius:50%;
+    background:
+      radial-gradient(circle at 32% 28%, #262b32, #12151a 68%);
+    border:3px solid #33393f;
+    box-shadow:var(--shadow-lg), var(--inset-top), inset 0 -8px 16px rgba(0,0,0,0.5);
+    color:var(--off-white); cursor:pointer;
+    font-family:'Rajdhani',sans-serif; font-weight:700; font-size:15px; letter-spacing:0.14em;
+    transition:transform 0.18s var(--ease), box-shadow 0.3s var(--ease);
+    animation:pulse 2.4s ease-in-out infinite;
+  }
+  #startBtn:hover{transform:scale(1.045);}
+  #startBtn:active{transform:scale(0.96);}
+  #startBtn .btn-ring{position:absolute; inset:10px; border-radius:50%; border:1px solid rgba(255,182,39,0.28);}
+  #startBtn .btn-notch{position:absolute; top:14px; left:50%; width:2px; height:14px; background:rgba(255,182,39,0.55); transform:translateX(-50%); border-radius:2px;}
+  @keyframes pulse{
+    0%,100%{box-shadow:var(--shadow-lg), var(--inset-top), inset 0 -8px 16px rgba(0,0,0,0.5), 0 0 0 0 rgba(255,59,78,0.4);}
+    50%{box-shadow:var(--shadow-lg), var(--inset-top), inset 0 -8px 16px rgba(0,0,0,0.5), 0 0 0 16px rgba(255,59,78,0);}
+  }
+
+  /* ---------- IGNITION SWEEP OVERLAY ---------- */
+  #sweepOverlay{position:fixed; inset:0; background:#000; z-index:100; display:none; align-items:center; justify-content:center; gap:70px;}
+  #sweepOverlay.active{display:flex;}
+  .sweep-gauge{width:140px; height:140px; position:relative;}
+  .sweep-label{position:absolute; bottom:-26px; left:0; right:0; text-align:center; font-family:'Rajdhani',sans-serif; letter-spacing:0.22em; font-size:11px; color:var(--muted); text-transform:uppercase;}
+
+  /* ---------- GARAGE BG (brand screen) ---------- */
+  #brandScreen{
+    background:
+      radial-gradient(ellipse 950px 520px at 50% -4%, rgba(255,182,39,0.09), transparent 62%),
+      radial-gradient(ellipse 700px 380px at 50% 100%, rgba(0,0,0,0.5), transparent 70%),
+      repeating-linear-gradient(90deg, rgba(255,255,255,0.022) 0px, rgba(255,255,255,0.022) 1px, transparent 1px, transparent 36px),
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.016) 0px, rgba(255,255,255,0.016) 1px, transparent 1px, transparent 36px),
+      linear-gradient(180deg, #1C1E22 0%, #0E1012 78%);
+  }
+  #brandScreen::before{
+    content:""; position:absolute; inset:0; pointer-events:none;
+    background-image:radial-gradient(circle, rgba(255,255,255,0.055) 1.3px, transparent 1.5px);
+    background-size:32px 32px; background-position:16px 16px;
+    mask-image:linear-gradient(180deg, rgba(0,0,0,0.9), rgba(0,0,0,0.35) 65%, transparent);
+  }
+  #brandScreen::after{
+    content:""; position:absolute; left:0; right:0; bottom:0; height:80px; pointer-events:none;
+    background:linear-gradient(180deg, transparent, rgba(0,0,0,0.55)), repeating-linear-gradient(135deg, rgba(255,255,255,0.03) 0 10px, transparent 10px 20px);
+  }
+
+  /* ---------- HEADER / NAV (shared) ---------- */
+  .topbar{width:100%; max-width:1100px; display:flex; align-items:center; justify-content:space-between; margin-bottom:38px; gap:16px; position:relative; z-index:2;}
+  .back-btn{
+    display:flex; align-items:center; gap:8px;
+    background:var(--panel); border:1px solid var(--panel-border); color:var(--off-white);
+    font-family:'Rajdhani',sans-serif; font-weight:600; letter-spacing:0.08em; font-size:13px;
+    padding:10px 16px 10px 13px; border-radius:var(--radius-sm); cursor:pointer; text-transform:uppercase;
+    box-shadow:var(--shadow-sm), var(--inset-top);
+    transition:border-color 0.2s var(--ease), background 0.2s var(--ease), transform 0.2s var(--ease);
+  }
+  .back-btn svg{width:14px; height:14px; flex-shrink:0;}
+  .back-btn:hover{border-color:rgba(255,182,39,0.45); background:var(--panel-light); transform:translateX(-2px);}
+  .crumb{font-family:'Rajdhani',sans-serif; letter-spacing:0.2em; font-size:12px; color:var(--muted); text-transform:uppercase; text-align:right;}
+  .crumb b{color:var(--teal); font-weight:700;}
+
+  .page-head{text-align:center; margin-bottom:38px; max-width:640px; position:relative; z-index:2;}
+  .eyebrow{letter-spacing:0.34em; font-size:11px; color:var(--redline); font-weight:600; text-transform:uppercase; margin-bottom:11px;}
+  .page-title{font-family:'Rajdhani',sans-serif; font-weight:700; font-size:clamp(30px,5vw,46px); margin-bottom:11px; letter-spacing:0.005em;}
+  .page-sub{color:var(--muted); font-size:14.5px; line-height:1.6;}
+
+  /* ---------- BRAND GRID: pegboard tags ---------- */
+  .brand-grid{width:100%; max-width:1020px; display:grid; grid-template-columns:repeat(auto-fit,minmax(165px,1fr)); gap:20px; position:relative; z-index:2;}
+  .brand-tile{
+    position:relative; cursor:pointer; text-align:center; padding:28px 12px 20px;
+    border-radius:var(--radius-md); overflow:hidden;
+    background:linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.008));
+    border:1px solid rgba(255,255,255,0.06);
+    box-shadow:var(--shadow-sm);
+    filter:grayscale(0.75) brightness(0.7);
+    transition:filter 0.4s var(--ease), border-color 0.4s var(--ease), transform 0.28s var(--ease), box-shadow 0.4s var(--ease);
+  }
+  .brand-tile .spotlight{
+    position:absolute; inset:-30%; border-radius:50%;
+    background:radial-gradient(circle, rgba(255,182,39,0.4), transparent 62%);
+    opacity:0; transition:opacity 0.4s var(--ease); pointer-events:none;
+  }
+  .brand-tile .hook{width:6px; height:16px; background:linear-gradient(180deg,#484f58,#2b3036); margin:0 auto 10px; border-radius:2px; box-shadow:var(--shadow-sm);}
+  .brand-tile:hover, .brand-tile:focus-visible{
+    filter:grayscale(0) brightness(1.05); transform:translateY(-5px) rotate(-1deg);
+    border-color:rgba(255,182,39,0.4); box-shadow:var(--shadow-md);
+  }
+  .brand-tile:hover .spotlight{opacity:1;}
+  .brand-name{font-family:'Rajdhani',sans-serif; font-weight:700; font-size:18.5px; letter-spacing:0.03em; position:relative;}
+  .brand-count{font-size:11px; color:var(--muted); letter-spacing:0.07em; position:relative; margin-top:5px;}
+
+  /* ---------- MODEL GRID ---------- */
+  .model-grid{width:100%; max-width:1040px; display:grid; grid-template-columns:repeat(auto-fit,minmax(235px,1fr)); gap:18px; position:relative; z-index:2;}
+  .model-card{
+    background:linear-gradient(180deg, var(--panel-light), var(--panel));
+    border:1px solid var(--panel-border); border-radius:var(--radius-md);
+    padding:16px 18px 20px; cursor:pointer; text-align:left;
+    box-shadow:var(--shadow-sm), var(--inset-top);
+    transition:transform 0.22s var(--ease), border-color 0.22s var(--ease), box-shadow 0.22s var(--ease);
+  }
+  .model-card:hover{transform:translateY(-5px); border-color:rgba(0,230,195,0.4); box-shadow:var(--shadow-md);}
+  .model-card.is-selecting{transform:scale(0.985); border-color:rgba(255,182,39,0.55); box-shadow:0 0 0 3px rgba(255,182,39,0.1), var(--shadow-md);}
+  .model-car-wrap{width:100%; display:flex; justify-content:center; padding:8px 0 6px; filter:drop-shadow(0 8px 14px rgba(0,0,0,0.4)); position:relative;}
+  .model-car-wrap svg{width:100%; max-width:185px; height:auto; overflow:visible;}
+  .model-car-wrap img{width:100%; max-width:185px; height:92px; object-fit:contain; display:block;}
+
+  /* ---------- EV HIGHLIGHT ---------- */
+  .model-card.is-ev{border-color:rgba(0,230,195,0.28); box-shadow:var(--shadow-sm), 0 0 0 1px rgba(0,230,195,0.12) inset;}
+  .model-card.is-ev:hover{border-color:rgba(0,230,195,0.65); box-shadow:0 0 24px rgba(0,230,195,0.18), var(--shadow-md);}
+  .model-card.is-ev .model-car-wrap{
+    border-radius:16px;
+    background:radial-gradient(ellipse 70% 70% at 50% 55%, rgba(0,230,195,0.16), transparent 72%);
+  }
+  .model-card.is-ev .model-car-wrap::before{
+    content:""; position:absolute; inset:2px; border-radius:16px;
+    border:1px dashed rgba(0,230,195,0.4);
+    animation:evPulseRing 2.6s ease-in-out infinite;
+    pointer-events:none;
+  }
+  @keyframes evPulseRing{
+    0%,100%{opacity:0.45; box-shadow:0 0 0 0 rgba(0,230,195,0.0);}
+    50%{opacity:0.9; box-shadow:0 0 18px 2px rgba(0,230,195,0.18);}
+  }
+  .ev-badge{
+    position:absolute; top:2px; right:2px; z-index:3;
+    display:flex; align-items:center; gap:3px;
+    font-family:'Share Tech Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:0.06em;
+    color:#04241d; background:linear-gradient(180deg,#3FFFDA,#00E6C3);
+    padding:3px 7px 3px 6px; border-radius:20px;
+    box-shadow:0 0 10px rgba(0,230,195,0.55), 0 2px 4px rgba(0,0,0,0.3);
+  }
+  .ev-badge svg{width:9px; height:9px; flex-shrink:0;}
+  .body-tag{
+    display:inline-block; font-size:10.5px; letter-spacing:0.1em; text-transform:uppercase;
+    color:var(--teal); border:1px solid rgba(0,230,195,0.35); background:rgba(0,230,195,0.07);
+    padding:3px 9px; border-radius:20px; margin-bottom:9px;
+  }
+  .model-name{font-family:'Rajdhani',sans-serif; font-weight:700; font-size:20.5px; margin-bottom:3px;}
+  .model-cta{font-size:11.5px; color:var(--muted); letter-spacing:0.05em;}
+  .quick-info{display:flex; gap:6px; flex-wrap:wrap; margin:2px 0 9px;}
+  .quick-pill{
+    font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:0.03em;
+    color:var(--muted); border:1px solid var(--panel-border); background:rgba(255,255,255,0.03);
+    padding:3px 8px; border-radius:20px; white-space:nowrap;
+  }
+
+  /* ---------- SPEC SHEET ---------- */
+  .spec-head{text-align:center; margin-bottom:4px; position:relative; z-index:2;}
+  .spec-brand{color:var(--muted); font-size:13px; letter-spacing:0.18em; text-transform:uppercase; margin-bottom:5px;}
+  .spec-model{font-family:'Rajdhani',sans-serif; font-weight:700; font-size:clamp(32px,6vw,54px); letter-spacing:0.005em;}
+  .spec-bodytag{margin-top:8px;}
+  .hero-car-wrap{width:100%; max-width:360px; display:flex; justify-content:center; padding:10px 0 22px; position:relative; z-index:2; filter:drop-shadow(0 18px 26px rgba(0,0,0,0.5));}
+  .hero-car-wrap svg{width:100%; height:auto; overflow:visible;}
+  .hero-car-wrap img{width:100%; max-width:360px; height:168px; object-fit:contain; display:block;}
+  .car-visual{width:100%; display:flex; justify-content:center; align-items:center;}
+  .car-fallback{display:none; width:100%;}
+  .car-fallback svg{width:100%; height:auto; display:block;}
+
+  #specScreen.is-entering .spec-head,
+  #specScreen.is-entering .hero-car-wrap,
+  #specScreen.is-entering .cluster,
+  #specScreen.is-entering .disclaimer{animation:specReveal 0.38s var(--ease) both;}
+  #specScreen.is-entering .hero-car-wrap{animation-delay:0.04s;}
+  #specScreen.is-entering .cluster{animation-delay:0.08s;}
+  #specScreen.is-entering .disclaimer{animation-delay:0.12s;}
+  @keyframes specReveal{from{opacity:0; transform:translateY(10px);}to{opacity:1; transform:translateY(0);}}
+
+  .cluster{width:100%; max-width:980px; display:grid; grid-template-columns:1.1fr 1fr; gap:20px; position:relative; z-index:2;}
+  @media (max-width:760px){ .cluster{grid-template-columns:1fr;} }
+
+  .panel-base{
+    background:linear-gradient(180deg, var(--panel-light), var(--panel));
+    border:1px solid var(--panel-border); border-radius:var(--radius-lg);
+    box-shadow:var(--shadow-md), var(--inset-top);
+  }
+  .gauge-panel{padding:30px; display:flex; flex-direction:column; align-items:center; grid-row:span 2;}
+  .gauge-title{display:flex; align-items:center; gap:7px; font-family:'Rajdhani',sans-serif; letter-spacing:0.15em; font-size:13px; color:var(--muted); text-transform:uppercase; margin-bottom:6px;}
+  .gauge-title svg{width:14px; height:14px; opacity:0.75;}
+  .gauge-svg-wrap{width:100%; max-width:290px; margin:10px 0 2px;}
+  .gauge-readout{font-family:'Rajdhani',sans-serif; font-weight:700; font-size:40px; margin-top:8px; text-shadow:0 2px 12px rgba(255,59,78,0.15);}
+  .gauge-readout span{font-size:16px; color:var(--muted); font-weight:600; margin-left:4px;}
+
+  .stat-card{padding:24px 26px; display:flex; flex-direction:column; justify-content:center;}
+  .stat-label{display:flex; align-items:center; gap:7px; font-family:'Rajdhani',sans-serif; letter-spacing:0.15em; font-size:12.5px; color:var(--muted); text-transform:uppercase; margin-bottom:12px;}
+  .stat-label svg{width:14px; height:14px; opacity:0.75;}
+  .stopwatch-val{font-family:'Share Tech Mono',monospace; font-size:46px; color:var(--redline); letter-spacing:0.02em; text-shadow:0 2px 16px rgba(255,59,78,0.25);}
+  .stopwatch-val span{font-size:18px; color:var(--muted); margin-left:6px;}
+
+  .warranty-ribbon{
+    display:flex; align-items:center; gap:13px;
+    background:linear-gradient(90deg, rgba(255,182,39,0.14), rgba(255,182,39,0.02));
+    border:1px solid rgba(255,182,39,0.38); border-radius:var(--radius-sm); padding:15px 17px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+  .warranty-icon{color:var(--amber); flex-shrink:0; width:20px; height:20px;}
+  .warranty-text{font-family:'Rajdhani',sans-serif; font-weight:700; font-size:17px; color:var(--amber); letter-spacing:0.01em;}
+
+  .battery-options{display:grid; grid-template-columns:repeat(auto-fit,minmax(155px,1fr)); gap:10px;}
+  .battery-option{background:#0B0D10; border:1px solid var(--panel-border); border-radius:var(--radius-sm); padding:13px 14px; box-shadow:inset 0 1px 0 rgba(255,255,255,0.04);}
+  .battery-pack{font-family:'Rajdhani',sans-serif; font-size:21px; font-weight:700; color:var(--off-white); line-height:1.1;}
+  .battery-range{font-family:'Share Tech Mono',monospace; font-size:12px; color:var(--teal); margin-top:6px;}
+  .battery-note{font-size:12px; color:var(--muted); margin-top:12px;}
+
+  .wide-card{grid-column:1 / -1;}
+  .dual-stat{display:flex; flex-direction:row; gap:22px;}
+  @media (max-width:420px){ .dual-stat{flex-direction:column; gap:16px;} }
+  .dual-item{flex:1; min-width:0;}
+  .dual-value{font-family:'Rajdhani',sans-serif; font-weight:700; font-size:18.5px; color:var(--off-white); line-height:1.3; word-break:break-word;}
+
+  .price-strip{display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;}
+  .odometer-box{
+    background:#0B0D10; border:1px solid var(--panel-border); border-radius:6px; padding:9px 4px; min-width:27px; text-align:center;
+    font-family:'Share Tech Mono',monospace; font-size:24px; color:var(--teal);
+    box-shadow:inset 0 2px 5px rgba(0,0,0,0.7), inset 0 -1px 0 rgba(255,255,255,0.03);
+    text-shadow:0 0 8px rgba(0,230,195,0.5);
+    opacity:0; transform:translateY(6px); animation:digitIn 0.4s var(--ease) forwards;
+  }
+  @keyframes digitIn{to{opacity:1; transform:translateY(0);}}
+  .price-note{font-size:12px; color:var(--muted); margin-top:12px;}
+
+  .disclaimer{
+    width:100%; max-width:980px; margin-top:26px; display:flex; gap:11px; align-items:flex-start;
+    background:rgba(255,59,78,0.05); border:1px dashed rgba(255,59,78,0.32); border-radius:var(--radius-sm);
+    padding:15px 17px; color:var(--muted); font-size:12.5px; line-height:1.6; position:relative; z-index:2;
+  }
+  .disclaimer svg{width:17px; height:17px; flex-shrink:0; color:var(--redline); margin-top:1px;}
+  .disclaimer b{color:var(--redline);}
+
+  .needle{transform-origin:100px 110px; transition:transform 1.15s cubic-bezier(.34,1.56,.64,1);}
+  .sweep-needle{transform-origin:70px 70px;}
+  .tick-label{font-family:'Share Tech Mono',monospace; font-size:8.5px; fill:#5c626c;}
+
+  @media (prefers-reduced-motion: reduce){ *{animation-duration:0.001ms !important; transition-duration:0.001ms !important;} }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+  <div class="screen active" id="ignition">
+    <div class="ignition-wrap">
+      <div class="ignition-eyebrow">Indian Car Spec Terminal</div>
+      <div class="ignition-title display">DASH</div>
+      <p class="ignition-sub">Pick a brand, pick a model — get the 0–100 time, top speed, warranty and ex-showroom price. Nothing else.</p>
+      <button id="startBtn"><span class="btn-ring"></span><span class="btn-notch"></span>PRESS TO<br>START</button>
+    </div>
+  </div>
+
+  <div class="screen" id="brandScreen">
+    <div class="topbar"><div></div><div class="crumb">STEP 1 / 3 — <b>SELECT BRAND</b></div></div>
+    <div class="page-head">
+      <div class="eyebrow">Garage Access</div>
+      <div class="page-title display">Pick your ride's brand</div>
+      <p class="page-sub">Ten of India's most popular carmakers, hanging on the pegboard. Tap one to see its lineup.</p>
+    </div>
+    <div class="brand-grid" id="brandGrid"></div>
+  </div>
+
+  <div class="screen" id="modelScreen">
+    <div class="topbar">
+      <button class="back-btn" onclick="goTo('brandScreen')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>ALL BRANDS</button>
+      <div class="crumb">STEP 2 / 3 — <b>SELECT MODEL</b></div>
+    </div>
+    <div class="page-head">
+      <div class="eyebrow" id="modelBrandEyebrow">Brand</div>
+      <div class="page-title display" id="modelBrandTitle">Lineup</div>
+      <p class="page-sub">Tap a car to pull its spec sheet.</p>
+    </div>
+    <div class="model-grid" id="modelGrid"></div>
+  </div>
+
+  <div class="screen" id="specScreen">
+    <div class="topbar">
+      <button class="back-btn" id="backToModels"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>BACK TO LINEUP</button>
+      <div class="crumb">STEP 3 / 3 — <b>SPEC SHEET</b></div>
+    </div>
+    <div class="spec-head">
+      <div class="spec-brand" id="specBrand">Brand</div>
+      <div class="spec-model display" id="specModel">Model</div>
+      <div class="body-tag spec-bodytag" id="specBodyTag">Body type</div>
+    </div>
+    <div class="hero-car-wrap" id="heroCarWrap"></div>
+
+    <div class="cluster">
+      <div class="gauge-panel panel-base">
+        <div class="gauge-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 100 20 10 10 0 000-20z"/><path d="M12 12l5-5" stroke-linecap="round"/></svg>Top Speed</div>
+        <div class="gauge-svg-wrap">
+          <svg viewBox="0 0 200 130" width="100%">
+            <defs>
+              <radialGradient id="gaugeFace" cx="50%" cy="85%" r="75%">
+                <stop offset="0%" stop-color="#1c2027"/>
+                <stop offset="100%" stop-color="#101318"/>
+              </radialGradient>
+              <linearGradient id="glassShine" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#ffffff" stop-opacity="0.06"/>
+                <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <circle cx="100" cy="95" r="88" fill="url(#gaugeFace)"/>
+            <ellipse cx="100" cy="55" rx="70" ry="34" fill="url(#glassShine)"/>
+            <path d="M 20 110 A 80 80 0 0 1 180 110" fill="none" stroke="#262b32" stroke-width="10" stroke-linecap="round"/>
+            <path d="M 165 85.5 A 80 80 0 0 1 180 110" fill="none" stroke="#4a1d22" stroke-width="10" stroke-linecap="round"/>
+            <path id="gaugeArc" d="M 20 110 A 80 80 0 0 1 180 110" fill="none" stroke="#FF3B4E" stroke-width="10" stroke-linecap="round" stroke-dasharray="251" stroke-dashoffset="251"/>
+            <g id="tickGroup"></g>
+            <line id="needle" class="needle" x1="100" y1="110" x2="100" y2="40" stroke="#F3EFE6" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="100" cy="110" r="7" fill="#F3EFE6"/>
+            <circle cx="100" cy="110" r="3" fill="#0A0C0F"/>
+          </svg>
+        </div>
+        <div class="gauge-readout"><span id="topSpeedVal">--</span><span>km/h</span></div>
+      </div>
+
+      <div class="stat-card panel-base">
+        <div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6M12 2v3" stroke-linecap="round"/></svg>0 – 100 km/h</div>
+        <div class="stopwatch-val"><span id="zeroToHundred">0.0</span><span>sec</span></div>
+      </div>
+
+      <div class="stat-card panel-base">
+        <div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 3v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V5l8-3z"/></svg>Warranty</div>
+        <div class="warranty-ribbon">
+          <svg class="warranty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 16.5h.01" stroke-linecap="round"/><path d="M10.3 3.9L2.7 17a2 2 0 001.7 3h15.2a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
+          <span class="warranty-text" id="warrantyVal">--</span>
+        </div>
+      </div>
+
+      <div class="stat-card panel-base wide-card" id="batteryCard" hidden>
+        <div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 7h6M9 11h6M9 15h3" stroke-linecap="round"/></svg>Battery options and claimed range</div>
+        <div class="battery-options" id="batteryOptions"></div>
+        <div class="battery-note">Certified or manufacturer-claimed range; actual range depends on speed, terrain, temperature, load and driving style.</div>
+      </div>
+
+      <div class="stat-card panel-base wide-card">
+        <div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18M7 14h4" stroke-linecap="round"/></svg>Ex-Showroom Price (Delhi, approx.)</div>
+        <div class="price-strip" id="priceStrip"></div>
+        <div class="price-note">Range covers base to top variant.</div>
+      </div>
+
+      <div class="stat-card panel-base dual-stat">
+        <div class="dual-item">
+          <div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h10l2-4h2l2 4v6H5z"/><circle cx="8.5" cy="18" r="1.6"/><circle cx="16.5" cy="18" r="1.6"/><path d="M5 12l-2 2M9 8V6"/></svg>Fuel Type</div>
+          <div class="dual-value" id="fuelVal">--</div>
+        </div>
+        <div class="dual-item">
+          <div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" stroke-linecap="round"/></svg>Transmission</div>
+          <div class="dual-value" id="transVal">--</div>
+        </div>
+      </div>
+
+      <div class="stat-card panel-base dual-stat">
+        <div class="dual-item">
+          <div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h16M4 12l3-3M4 12l3 3M20 12l-3-3M20 12l-3 3" stroke-linecap="round" stroke-linejoin="round"/></svg>Mileage / Range</div>
+          <div class="dual-value" id="mileageVal">--</div>
+        </div>
+        <div class="dual-item">
+          <div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3"/><path d="M5 21v-2a7 7 0 0114 0v2" stroke-linecap="round"/></svg>Seating</div>
+          <div class="dual-value" id="seatsVal">--</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="disclaimer">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 16.5h.01" stroke-linecap="round"/><path d="M10.3 3.9L2.7 17a2 2 0 001.7 3h15.2a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
+      <span><b>Approximate figures. Illustrations, not photos.</b> Car graphics are original stylized silhouettes with invented badges — not manufacturer photos or logos. Performance numbers, warranty terms, mileage/range figures and prices are rounded from general market knowledge and vary by variant, city and offers. Confirm exact figures with your dealer or the brand's official site before buying.</span>
+    </div>
+  </div>
+
+</div>
+
+<div id="sweepOverlay">
+  <div class="sweep-gauge">
+    <svg viewBox="0 0 140 140" width="140" height="140">
+      <circle cx="70" cy="70" r="62" fill="#101318" stroke="#2A2F37" stroke-width="2"/>
+      <line id="sweepNeedle1" class="sweep-needle" x1="70" y1="70" x2="70" y2="18" stroke="#FFB627" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="70" cy="70" r="5" fill="#FFB627"/>
+    </svg>
+    <div class="sweep-label">RPM</div>
+  </div>
+  <div class="sweep-gauge">
+    <svg viewBox="0 0 140 140" width="140" height="140">
+      <circle cx="70" cy="70" r="62" fill="#101318" stroke="#2A2F37" stroke-width="2"/>
+      <line id="sweepNeedle2" class="sweep-needle" x1="70" y1="70" x2="70" y2="18" stroke="#00E6C3" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="70" cy="70" r="5" fill="#00E6C3"/>
+    </svg>
+    <div class="sweep-label">SPEED</div>
+  </div>
+</div>
+
+<div id="flyClone"></div>
+
+<script>
+// ---------------- ORIGINAL CAR SILHOUETTES (by body-type bucket) ----------------
+// Hand-drawn generic proportions — not traced from any real vehicle or photo.
+const SIL = {
+  hatchback:{wheels:[70,170], body:"M20,90 L20,70 Q20,55 35,52 L70,52 Q85,30 110,28 L140,28 Q158,30 165,50 L205,50 Q222,52 222,68 L222,90 Z", glass:"M78,50 Q92,34 112,32 L138,32 Q152,34 160,48 Z"},
+  sedan:{wheels:[65,180], body:"M15,90 L15,68 Q15,54 30,52 L55,52 Q70,30 95,28 L135,28 Q152,30 160,48 L200,48 Q216,50 224,60 L230,68 Q232,80 228,90 Z", glass:"M62,50 Q76,34 98,32 L133,32 Q148,34 156,46 Z"},
+  suv:{wheels:[68,180], body:"M18,92 L18,60 Q18,40 38,38 L68,38 Q80,22 108,20 L145,20 Q165,22 172,36 L205,36 Q224,38 224,58 L224,92 Z", glass:"M70,36 Q82,24 108,22 L143,22 Q160,24 168,34 Z"},
+  suv3row:{wheels:[64,196], body:"M14,92 L14,58 Q14,38 34,36 L62,36 Q74,20 100,18 L175,18 Q198,20 205,34 L222,34 Q232,36 232,56 L232,92 Z", glass:"M64,34 Q76,22 100,20 L173,20 Q190,22 198,32 Z"},
+  offroad:{wheels:[62,178], extraWheel:{cx:206,cy:60,r:11}, body:"M16,90 L16,55 Q16,34 36,32 L64,32 Q76,18 100,16 L150,16 Q168,18 174,30 L196,30 Q216,32 218,50 L218,90 Z", glass:"M66,30 Q78,20 100,18 L148,18 Q162,20 170,28 Z"},
+  microev:{wheels:[62,158], body:"M30,90 L30,62 Q30,42 48,40 L70,40 Q80,24 100,22 L130,22 Q148,24 152,38 L170,38 Q188,40 188,58 L188,90 Z", glass:"M72,38 Q82,26 100,24 L128,24 Q142,26 150,36 Z"}
+};
+function bucketFor(body){
+  const b = body.toLowerCase();
+  if(b.includes('off-road') || b.includes('rugged')) return 'offroad';
+  if(b.includes('3-row') || b.includes('mpv')) return 'suv3row';
+  if(b.includes('micro ev')) return 'microev';
+  if(b.includes('suv') || b.includes('crossover') || b.includes('coupe')) return 'suv';
+  if(b.includes('sedan')) return 'sedan';
+  return 'hatchback';
+}
+
+// Front-fascia anchor points per body bucket (nose area, headlight/grille/badge placement)
+const FASCIA = {
+  hatchback:{h:{x:34,y:66}, g:{x:24,y:76}, b:{x:52,y:42}},
+  sedan:{h:{x:28,y:66}, g:{x:19,y:76}, b:{x:46,y:42}},
+  suv:{h:{x:36,y:56}, g:{x:25,y:68}, b:{x:56,y:32}},
+  suv3row:{h:{x:32,y:54}, g:{x:21,y:66}, b:{x:52,y:30}},
+  offroad:{h:{x:34,y:52}, g:{x:23,y:64}, b:{x:54,y:28}},
+  microev:{h:{x:46,y:60}, g:{x:37,y:70}, b:{x:64,y:38}}
+};
+
+// Per-brand "house style" kits — invented headlight/grille/badge shapes, distinct per brand, none copied from any real emblem.
+const STYLE_KITS = {
+  "Maruti Suzuki":{headlight:"round", grille:"slats", badge:"circle"},
+  "Hyundai":{headlight:"trapezoid", grille:"mesh", badge:"hexagon"},
+  "Tata":{headlight:"angular", grille:"bar", badge:"chevron"},
+  "Mahindra":{headlight:"rect", grille:"thickbar", badge:"shield"},
+  "Kia":{headlight:"slim", grille:"wide", badge:"diamond"},
+  "Toyota":{headlight:"oval", grille:"hexgrille", badge:"oval"},
+  "Honda":{headlight:"wing", grille:"thinslats", badge:"wingmark"},
+  "MG":{headlight:"round", grille:"mesh", badge:"square"},
+  "Skoda":{headlight:"sharp", grille:"vertical", badge:"crest"},
+  "Volkswagen":{headlight:"round", grille:"bar", badge:"ring"},
+  "Renault":{headlight:"trapezoid", grille:"wide", badge:"diamond"},
+  "Citroën":{headlight:"wing", grille:"vertical", badge:"chevron"}
+};
+
+function headlightSVG(type,x,y){
+  const ink="#0A0C0F";
+  switch(type){
+    case 'trapezoid': return `<polygon points="${x-6},${y-3} ${x+6},${y-1} ${x+5},${y+4} ${x-5},${y+3}" fill="#FFEEB0" stroke="${ink}" stroke-width="1.1"/>`;
+    case 'angular': return `<polygon points="${x-6},${y+1} ${x+1},${y-6} ${x+6},${y-1} ${x+2},${y+5}" fill="#FFEEB0" stroke="${ink}" stroke-width="1.1"/>`;
+    case 'rect': return `<rect x="${x-6}" y="${y-4}" width="11" height="7" rx="1.5" fill="#FFEEB0" stroke="${ink}" stroke-width="1.1"/>`;
+    case 'slim': return `<rect x="${x-7}" y="${y-2}" width="13" height="4" rx="2" fill="#FFEEB0" stroke="${ink}" stroke-width="1.1"/>`;
+    case 'oval': return `<ellipse cx="${x}" cy="${y}" rx="6" ry="4" fill="#FFEEB0" stroke="${ink}" stroke-width="1.1"/>`;
+    case 'wing': return `<path d="M${x-7},${y} Q${x},${y-6} ${x+7},${y-1} Q${x},${y+3} ${x-7},${y} Z" fill="#FFEEB0" stroke="${ink}" stroke-width="1.1"/>`;
+    case 'sharp': return `<polygon points="${x-7},${y+2} ${x-1},${y-5} ${x+6},${y-2} ${x+2},${y+4}" fill="#FFEEB0" stroke="${ink}" stroke-width="1.1"/>`;
+    default: return `<circle cx="${x}" cy="${y}" r="5" fill="#FFEEB0" stroke="${ink}" stroke-width="1.3"/>`;
+  }
+}
+function grilleSVG(type,x,y){
+  const ink="#0A0C0F";
+  switch(type){
+    case 'slats': return `<line x1="${x-6}" y1="${y-3}" x2="${x+6}" y2="${y-3}" stroke="${ink}" stroke-width="1.2"/><line x1="${x-6}" y1="${y}" x2="${x+6}" y2="${y}" stroke="${ink}" stroke-width="1.2"/><line x1="${x-6}" y1="${y+3}" x2="${x+6}" y2="${y+3}" stroke="${ink}" stroke-width="1.2"/>`;
+    case 'mesh': return `<circle cx="${x-4}" cy="${y-2}" r="1" fill="${ink}"/><circle cx="${x}" cy="${y-2}" r="1" fill="${ink}"/><circle cx="${x+4}" cy="${y-2}" r="1" fill="${ink}"/><circle cx="${x-4}" cy="${y+2}" r="1" fill="${ink}"/><circle cx="${x}" cy="${y+2}" r="1" fill="${ink}"/><circle cx="${x+4}" cy="${y+2}" r="1" fill="${ink}"/>`;
+    case 'bar': return `<rect x="${x-7}" y="${y-2}" width="14" height="4" rx="1" fill="${ink}" opacity="0.85"/>`;
+    case 'thickbar': return `<rect x="${x-7}" y="${y-4}" width="14" height="3" rx="1" fill="${ink}" opacity="0.85"/><rect x="${x-7}" y="${y+1}" width="14" height="3" rx="1" fill="${ink}" opacity="0.85"/>`;
+    case 'wide': return `<rect x="${x-9}" y="${y-4}" width="18" height="8" rx="4" fill="none" stroke="${ink}" stroke-width="1.3"/>`;
+    case 'hexgrille': return `<polygon points="${x-6},${y} ${x-3},${y-4} ${x+3},${y-4} ${x+6},${y} ${x+3},${y+4} ${x-3},${y+4}" fill="none" stroke="${ink}" stroke-width="1.2"/>`;
+    case 'thinslats': return `<line x1="${x-6}" y1="${y-2.5}" x2="${x+6}" y2="${y-2.5}" stroke="${ink}" stroke-width="0.9"/><line x1="${x-6}" y1="${y-0.5}" x2="${x+6}" y2="${y-0.5}" stroke="${ink}" stroke-width="0.9"/><line x1="${x-6}" y1="${y+1.5}" x2="${x+6}" y2="${y+1.5}" stroke="${ink}" stroke-width="0.9"/><line x1="${x-6}" y1="${y+3.5}" x2="${x+6}" y2="${y+3.5}" stroke="${ink}" stroke-width="0.9"/>`;
+    case 'vertical': return `<line x1="${x-4}" y1="${y-4}" x2="${x-4}" y2="${y+4}" stroke="${ink}" stroke-width="1.2"/><line x1="${x}" y1="${y-4}" x2="${x}" y2="${y+4}" stroke="${ink}" stroke-width="1.2"/><line x1="${x+4}" y1="${y-4}" x2="${x+4}" y2="${y+4}" stroke="${ink}" stroke-width="1.2"/>`;
+    default: return `<rect x="${x-7}" y="${y-2}" width="14" height="4" rx="1" fill="${ink}" opacity="0.85"/>`;
+  }
+}
+function badgeSVG(type,x,y){
+  const ink="#0A0C0F";
+  switch(type){
+    case 'circle': return `<circle cx="${x}" cy="${y}" r="4" fill="none" stroke="${ink}" stroke-width="1.3"/><circle cx="${x}" cy="${y}" r="1.3" fill="${ink}"/>`;
+    case 'hexagon': return `<polygon points="${x},${y-4.5} ${x+3.9},${y-2.25} ${x+3.9},${y+2.25} ${x},${y+4.5} ${x-3.9},${y+2.25} ${x-3.9},${y-2.25}" fill="none" stroke="${ink}" stroke-width="1.3"/>`;
+    case 'chevron': return `<path d="M${x-4},${y-2} L${x},${y+3} L${x+4},${y-2}" fill="none" stroke="${ink}" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>`;
+    case 'shield': return `<path d="M${x},${y-5} L${x+4},${y-3} L${x+4},${y+1} Q${x+4},${y+5} ${x},${y+6} Q${x-4},${y+5} ${x-4},${y+1} L${x-4},${y-3} Z" fill="none" stroke="${ink}" stroke-width="1.3"/>`;
+    case 'diamond': return `<polygon points="${x},${y-5} ${x+5},${y} ${x},${y+5} ${x-5},${y}" fill="none" stroke="${ink}" stroke-width="1.3"/>`;
+    case 'oval': return `<ellipse cx="${x}" cy="${y}" rx="5" ry="3.4" fill="none" stroke="${ink}" stroke-width="1.3"/>`;
+    case 'wingmark': return `<path d="M${x-5},${y} Q${x},${y-4} ${x+5},${y} Q${x},${y+3} ${x-5},${y} Z" fill="none" stroke="${ink}" stroke-width="1.2"/>`;
+    case 'square': return `<rect x="${x-4}" y="${y-4}" width="8" height="8" rx="1.5" fill="none" stroke="${ink}" stroke-width="1.3"/>`;
+    case 'crest': return `<polygon points="${x},${y-5} ${x+4.5},${y-1.5} ${x+2.8},${y+4.5} ${x-2.8},${y+4.5} ${x-4.5},${y-1.5}" fill="none" stroke="${ink}" stroke-width="1.3"/>`;
+    case 'ring': return `<circle cx="${x}" cy="${y}" r="4.5" fill="none" stroke="${ink}" stroke-width="1.6"/>`;
+    default: return `<circle cx="${x}" cy="${y}" r="4" fill="none" stroke="${ink}" stroke-width="1.3"/>`;
+  }
+}
+
+// Lighten (positive percent) or darken (negative percent) a hex color — used to build gradient stops.
+function shadeColor(hex, percent){
+  const num = parseInt(hex.replace('#',''), 16);
+  let r = (num >> 16) + percent;
+  let g = ((num >> 8) & 0x00FF) + percent;
+  let b = (num & 0x0000FF) + percent;
+  r = Math.max(Math.min(255, r), 0);
+  g = Math.max(Math.min(255, g), 0);
+  b = Math.max(Math.min(255, b), 0);
+  return '#' + (0x1000000 + r * 0x10000 + g * 0x100 + b).toString(16).slice(1);
+}
+
+let svgInstanceCounter = 0;
+function carSVG(bucket, color, brand){
+  svgInstanceCounter++;
+  const uid = 'car' + svgInstanceCounter;
+  const s = SIL[bucket];
+  const kit = STYLE_KITS[brand] || {headlight:'round',grille:'slats',badge:'circle'};
+  const f = FASCIA[bucket];
+
+  const lightC = shadeColor(color, 55);
+  const darkC = shadeColor(color, -50);
+
+  const shadowCx = (s.wheels[0] + s.wheels[1]) / 2;
+  const shadowRx = (s.wheels[1] - s.wheels[0]) / 2 + 36;
+
+  const wheels = s.wheels.map(cx => `
+    <circle cx="${cx}" cy="90" r="17" fill="url(#${uid}-tire)" stroke="#050607" stroke-width="1.5"/>
+    <circle cx="${cx}" cy="90" r="9.5" fill="url(#${uid}-hub)"/>
+    <circle cx="${cx}" cy="90" r="9.5" fill="none" stroke="${darkC}" stroke-width="0.8" opacity="0.55"/>
+    <circle cx="${cx}" cy="90" r="2.4" fill="#6b6f75"/>
+  `).join('');
+  const extra = s.extraWheel ? `<circle cx="${s.extraWheel.cx}" cy="${s.extraWheel.cy}" r="${s.extraWheel.r}" fill="url(#${uid}-tire)" stroke="#050607" stroke-width="1.2"/>` : '';
+
+  return `<svg viewBox="0 0 240 112" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="${uid}-body" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${lightC}"/>
+        <stop offset="52%" stop-color="${color}"/>
+        <stop offset="100%" stop-color="${darkC}"/>
+      </linearGradient>
+      <linearGradient id="${uid}-glass" x1="0" y1="0" x2="0.15" y2="1">
+        <stop offset="0%" stop-color="#4a5058"/>
+        <stop offset="60%" stop-color="#181b1f"/>
+        <stop offset="100%" stop-color="#08090b"/>
+      </linearGradient>
+      <radialGradient id="${uid}-tire" cx="35%" cy="28%" r="78%">
+        <stop offset="0%" stop-color="#2e3238"/>
+        <stop offset="100%" stop-color="#0c0e10"/>
+      </radialGradient>
+      <radialGradient id="${uid}-hub" cx="35%" cy="28%" r="78%">
+        <stop offset="0%" stop-color="#f0f0f0"/>
+        <stop offset="100%" stop-color="#93979d"/>
+      </radialGradient>
+      <radialGradient id="${uid}-shadow" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#000000" stop-opacity="0.5"/>
+        <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+    <ellipse cx="${shadowCx}" cy="101" rx="${shadowRx}" ry="7" fill="url(#${uid}-shadow)"/>
+    <path d="${s.body}" fill="url(#${uid}-body)" stroke="${darkC}" stroke-width="1"/>
+    <path d="${s.glass}" fill="url(#${uid}-glass)"/>
+    <path d="${s.glass}" fill="none" stroke="${lightC}" stroke-width="0.7" opacity="0.45"/>
+    ${extra}
+    ${wheels}
+    ${grilleSVG(kit.grille, f.g.x, f.g.y)}
+    ${headlightSVG(kit.headlight, f.h.x, f.h.y)}
+    ${badgeSVG(kit.badge, f.b.x, f.b.y)}
+  </svg>`;
+}
+
+// Bundled product images are resolved relative to this HTML file, so the explorer works
+// when opened directly in a browser and when hosted as a static site.
+const IMAGE_BASE_URL = "assets/cars/";
+
+// Product images are local files so the explorer continues to work without a network connection.
+// Two display names need an explicit match because their image filename differs from a simple slug.
+const MODEL_IMAGE_IDS = {"WagonR":"wagonr", "City e:HEV":"city-hybrid"};
+function modelImageId(m){
+  return MODEL_IMAGE_IDS[m.name] || m.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+}
+function carVisual(m, bucket, color, brand){
+  const id = modelImageId(m);
+  const fallback = carSVG(bucket, color, brand);
+  return `<span class="car-visual"><img src="${IMAGE_BASE_URL}${id}.webp" alt="${brand} ${m.name}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="car-fallback">${fallback}</span></span>`;
+}
+
+// ---------------- DATA ----------------
+// All performance/warranty/price figures approximate — see in-app disclaimer.
+const DATA = {
+  "Maruti Suzuki": {color:"#5DD5FF", models: [
+    {name:"Alto K10", body:"Hatchback", zeroHundred:15.5, topSpeed:150, warranty:"2 yrs / unlimited km (ext. to 5 yrs)", price:"₹4.0 – 5.7 L", fuel:"Petrol", transmission:"5-speed Manual / AMT", mileage:"24.4 kmpl", seats:5},
+    {name:"WagonR", body:"Hatchback", zeroHundred:14.0, topSpeed:155, warranty:"2 yrs / unlimited km (ext. to 5 yrs)", price:"₹5.7 – 7.5 L", fuel:"Petrol / CNG", transmission:"5-speed Manual / AMT", mileage:"25.4 kmpl (32.5 km/kg CNG)", seats:5},
+    {name:"Swift", body:"Hatchback", zeroHundred:12.5, topSpeed:165, warranty:"2 yrs / unlimited km (ext. to 5 yrs)", price:"₹6.5 – 9.5 L", fuel:"Petrol", transmission:"5-speed Manual / AMT", mileage:"22.4 kmpl", seats:5},
+    {name:"Baleno", body:"Premium Hatchback", zeroHundred:12.0, topSpeed:165, warranty:"2 yrs / unlimited km (ext. to 5 yrs)", price:"₹6.7 – 9.8 L", fuel:"Petrol", transmission:"5-speed Manual / AMT", mileage:"22.9 kmpl", seats:5},
+    {name:"Dzire", body:"Sedan", zeroHundred:12.5, topSpeed:165, warranty:"2 yrs / unlimited km (ext. to 5 yrs)", price:"₹6.8 – 10.0 L", fuel:"Petrol / CNG", transmission:"5-speed Manual / AMT", mileage:"24.8 kmpl", seats:5},
+    {name:"Brezza", body:"Compact SUV", zeroHundred:12.0, topSpeed:170, warranty:"2 yrs / unlimited km (ext. to 5 yrs)", price:"₹8.3 – 14.0 L", fuel:"Petrol", transmission:"5-speed Manual / AT", mileage:"19.8 kmpl", seats:5},
+    {name:"Grand Vitara", body:"Midsize SUV", zeroHundred:10.5, topSpeed:175, warranty:"2 yrs / unlimited km (ext. to 5 yrs)", price:"₹11.4 – 20.0 L", fuel:"Petrol (Hybrid) / CNG", transmission:"Manual / e-CVT", mileage:"27.97 kmpl (hybrid)", seats:5},
+    {name:"Fronx", body:"Crossover", zeroHundred:11.0, topSpeed:175, warranty:"2 yrs / unlimited km (ext. to 5 yrs)", price:"₹7.5 – 13.5 L", fuel:"Petrol", transmission:"5-speed Manual / AMT / AT", mileage:"24.5 kmpl", seats:5}
+  ]},
+  "Hyundai": {color:"#00E6C3", models: [
+    {name:"Grand i10 Nios", body:"Hatchback", zeroHundred:14.0, topSpeed:155, warranty:"3 yrs / unlimited km (ext. to 7 yrs)", price:"₹5.9 – 8.4 L", fuel:"Petrol / CNG", transmission:"5-speed Manual / AMT", mileage:"20.3 kmpl", seats:5},
+    {name:"i20", body:"Premium Hatchback", zeroHundred:11.5, topSpeed:175, warranty:"3 yrs / unlimited km (ext. to 7 yrs)", price:"₹7.0 – 11.3 L", fuel:"Petrol", transmission:"Manual / CVT / DCT", mileage:"20.0 kmpl", seats:5},
+    {name:"Venue", body:"Compact SUV", zeroHundred:11.0, topSpeed:175, warranty:"3 yrs / unlimited km (ext. to 7 yrs)", price:"₹8.0 – 14.0 L", fuel:"Petrol / Diesel", transmission:"Manual / iMT / DCT", mileage:"18.4 kmpl", seats:5},
+    {name:"Creta", body:"Midsize SUV", zeroHundred:10.5, topSpeed:180, warranty:"3 yrs / unlimited km (ext. to 7 yrs)", price:"₹11.0 – 20.2 L", fuel:"Petrol / Diesel", transmission:"Manual / CVT / AT", mileage:"21.4 kmpl", seats:5},
+    {name:"Creta Electric", body:"Electric SUV", zeroHundred:7.9, topSpeed:180, warranty:"3 yrs / unlimited km + 8 yrs / 1,60,000 km battery", price:"₹18.0 – 24.5 L (approx.)", fuel:"Electric", transmission:"Single-speed (EV)", mileage:"473–510 km range (claimed)", seats:5},
+    {name:"Verna", body:"Sedan", zeroHundred:10.0, topSpeed:190, warranty:"3 yrs / unlimited km (ext. to 7 yrs)", price:"₹11.0 – 17.4 L", fuel:"Petrol", transmission:"Manual / DCT", mileage:"20.6 kmpl", seats:5},
+    {name:"Alcazar", body:"3-Row SUV", zeroHundred:11.5, topSpeed:180, warranty:"3 yrs / unlimited km (ext. to 7 yrs)", price:"₹16.2 – 20.5 L", fuel:"Petrol / Diesel", transmission:"Manual / AT", mileage:"18.1 kmpl", seats:"6 / 7"},
+    {name:"Exter", body:"Micro SUV", zeroHundred:13.5, topSpeed:155, warranty:"3 yrs / unlimited km (ext. to 7 yrs)", price:"₹6.1 – 10.0 L", fuel:"Petrol / CNG", transmission:"5-speed Manual / AMT", mileage:"19.4 kmpl", seats:5},
+    {name:"IONIQ 5", body:"Electric SUV", zeroHundred:7.6, topSpeed:185, warranty:"3 yrs / unlimited km + 8 yr battery", price:"₹55.7 L (approx.)", fuel:"Electric", transmission:"Single-speed (EV)", mileage:"631 km range (claimed)", seats:5}
+  ]},
+  "Tata": {color:"#FF7A45", models: [
+    {name:"Tiago", body:"Hatchback", zeroHundred:14.5, topSpeed:155, warranty:"2 yrs / 75,000 km (ext. to 5 yrs)", price:"₹6.0 – 9.0 L", fuel:"Petrol / CNG", transmission:"5-speed Manual / AMT", mileage:"19.8 kmpl", seats:5},
+    {name:"Tiago EV", body:"Electric Hatchback", zeroHundred:11.5, topSpeed:120, warranty:"3 yrs / 1,25,000 km + 8 yrs / 1,60,000 km battery", price:"₹8.0 – 11.2 L (approx.)", fuel:"Electric", transmission:"Single-speed (EV)", mileage:"315 km range (claimed)", seats:5},
+    {name:"Tigor", body:"Sedan", zeroHundred:13.5, topSpeed:160, warranty:"2 yrs / 75,000 km (ext. to 5 yrs)", price:"₹6.6 – 9.6 L", fuel:"Petrol / CNG", transmission:"5-speed Manual / AMT", mileage:"20.1 kmpl", seats:5},
+    {name:"Punch", body:"Micro SUV", zeroHundred:13.0, topSpeed:155, warranty:"2 yrs / 75,000 km (ext. to 5 yrs)", price:"₹6.1 – 10.0 L", fuel:"Petrol / CNG", transmission:"5-speed Manual / AMT", mileage:"20.1 kmpl", seats:5},
+    {name:"Altroz", body:"Premium Hatchback", zeroHundred:12.5, topSpeed:165, warranty:"2 yrs / 75,000 km (ext. to 5 yrs)", price:"₹6.8 – 10.6 L", fuel:"Petrol / Diesel", transmission:"5-speed Manual / AMT", mileage:"19.3 kmpl", seats:5},
+    {name:"Nexon", body:"Compact SUV", zeroHundred:10.5, topSpeed:180, warranty:"2 yrs / 75,000 km (ext. to 5 yrs)", price:"₹8.3 – 15.6 L", fuel:"Petrol / Diesel", transmission:"Manual / AMT / DCT", mileage:"17.4 kmpl", seats:5},
+    {name:"Nexon EV", body:"Electric SUV", zeroHundred:8.9, topSpeed:150, warranty:"3 yrs / 1,25,000 km + 8 yrs / 1,60,000 km battery", price:"₹12.5 – 18.0 L (approx.)", fuel:"Electric", transmission:"Single-speed (EV)", mileage:"489 km range (claimed)", seats:5},
+    {name:"Harrier", body:"Midsize SUV", zeroHundred:10.5, topSpeed:180, warranty:"2 yrs / 75,000 km (ext. to 5 yrs)", price:"₹15.5 – 26.5 L", fuel:"Diesel", transmission:"Manual / AT", mileage:"16.8 kmpl", seats:5},
+    {name:"Safari", body:"3-Row SUV", zeroHundred:10.5, topSpeed:180, warranty:"2 yrs / 75,000 km (ext. to 5 yrs)", price:"₹16.0 – 27.4 L", fuel:"Diesel", transmission:"Manual / AT", mileage:"16.1 kmpl", seats:"6 / 7"},
+    {name:"Curvv", body:"SUV Coupe", zeroHundred:9.5, topSpeed:190, warranty:"2 yrs / 75,000 km (ext. to 5 yrs)", price:"₹10.0 – 19.5 L", fuel:"Petrol / Diesel", transmission:"Manual / DCT", mileage:"17.4 kmpl", seats:5},
+    {name:"Curvv EV", body:"Electric SUV Coupe", zeroHundred:8.6, topSpeed:160, warranty:"3 yrs / 1,25,000 km + 8 yrs / 1,60,000 km battery", price:"₹17.5 – 22.0 L (approx.)", fuel:"Electric", transmission:"Single-speed (EV)", mileage:"585 km range (claimed)", seats:5}
+  ]},
+  "Mahindra": {color:"#FF3B4E", models: [
+    {name:"Bolero", body:"Rugged SUV", zeroHundred:17.0, topSpeed:140, warranty:"3 yrs / unlimited km (ext. available)", price:"₹9.9 – 11.9 L", fuel:"Diesel", transmission:"5-speed Manual", mileage:"16.7 kmpl", seats:7},
+    {name:"XUV 3XO", body:"Compact SUV", zeroHundred:9.5, topSpeed:180, warranty:"3 yrs / unlimited km (ext. available)", price:"₹8.0 – 15.5 L", fuel:"Petrol / Diesel", transmission:"Manual / AT", mileage:"18.5 kmpl", seats:5},
+    {name:"XUV400", body:"Electric SUV", zeroHundred:8.3, topSpeed:150, warranty:"3 yrs / unlimited km + 8 yrs / 1,60,000 km battery", price:"₹15.5 – 17.5 L (approx.)", fuel:"Electric", transmission:"Single-speed (EV)", mileage:"456 km range (claimed)", seats:5},
+    {name:"BE 6", body:"Electric SUV Coupe", zeroHundred:6.7, topSpeed:202, warranty:"Lifetime battery warranty (private first owner)", price:"₹18.9 – 26.9 L (approx.)", fuel:"Electric", transmission:"Single-speed (EV)", mileage:"683 km range (MIDC claimed)", seats:5},
+    {name:"XEV 9e", body:"Electric SUV Coupe", zeroHundred:6.8, topSpeed:200, warranty:"Lifetime battery warranty (private first owner)", price:"₹21.9 – 30.5 L (approx.)", fuel:"Electric", transmission:"Single-speed (EV)", mileage:"656 km range (MIDC claimed)", seats:5},
+    {name:"XEV 9S", body:"Electric 3-Row SUV", zeroHundred:8.0, topSpeed:180, warranty:"Lifetime battery warranty (private first owner)", price:"₹19.95 – 29.45 L (approx.)", fuel:"Electric", transmission:"Single-speed (EV)", mileage:"500 km real-world range (claimed)", seats:7},
+    {name:"Scorpio Classic", body:"SUV", zeroHundred:14.0, topSpeed:155, warranty:"3 yrs / unlimited km (ext. available)", price:"₹12.5 – 16.7 L", fuel:"Diesel", transmission:"5-speed Manual", mileage:"15.4 kmpl", seats:"7 / 9"},
+    {name:"Scorpio-N", body:"SUV", zeroHundred:10.5, topSpeed:180, warranty:"3 yrs / unlimited km (ext. available)", price:"₹13.5 – 24.8 L", fuel:"Petrol / Diesel", transmission:"Manual / AT", mileage:"15.4 kmpl", seats:7},
+    {name:"XUV700", body:"Midsize SUV", zeroHundred:9.0, topSpeed:190, warranty:"3 yrs / unlimited km (ext. available)", price:"₹14.0 – 26.5 L", fuel:"Petrol / Diesel", transmission:"Manual / AT", mileage:"16.0 kmpl", seats:"5 / 7"},
+    {name:"Thar", body:"Off-Roader", zeroHundred:10.0, topSpeed:155, warranty:"3 yrs / unlimited km (ext. available)", price:"₹12.1 – 18.3 L", fuel:"Petrol / Diesel", transmission:"Manual / AT", mileage:"15.2 kmpl", seats:4},
+    {name:"Thar Roxx", body:"Off-Roader (5-door)", zeroHundred:9.5, topSpeed:165, warranty:"3 yrs / unlimited km (ext. available)", price:"₹13.0 – 22.6 L", fuel:"Petrol / Diesel", transmission:"Manual / AT", mileage:"16.9 kmpl", seats:5}
+  ]},
+  "Kia": {color:"#FFB627", models: [
+    {name:"Sonet", body:"Compact SUV", zeroHundred:10.0, topSpeed:175, warranty:"3 yrs / unlimited km (ext. to 5–7 yrs)", price:"₹8.0 – 15.5 L", fuel:"Petrol / Diesel", transmission:"Manual / DCT / AT", mileage:"18.4 kmpl", seats:5},
+    {name:"Seltos", body:"Midsize SUV", zeroHundred:9.5, topSpeed:195, warranty:"3 yrs / unlimited km (ext. to 5–7 yrs)", price:"₹11.0 – 20.5 L", fuel:"Petrol / Diesel", transmission:"Manual / DCT / AT", mileage:"16.8 kmpl", seats:5},
+    {name:"Carens", body:"3-Row MPV", zeroHundred:11.0, topSpeed:180, warranty:"3 yrs / unlimited km (ext. to 5–7 yrs)", price:"₹11.0 – 20.0 L", fuel:"Petrol / Diesel", transmission:"Manual / DCT / AT", mileage:"16.0 kmpl", seats:"6 / 7"},
+    {name:"Carnival", body:"Premium MPV", zeroHundred:11.0, topSpeed:187, warranty:"3 yrs / unlimited km (ext. to 5–7 yrs)", price:"₹26.0 – 34.0 L", fuel:"Diesel", transmission:"8-speed Automatic", mileage:"14.7 kmpl", seats:"7 / 8"},
+    {name:"EV6", body:"Electric SUV", zeroHundred:5.2, topSpeed:190, warranty:"3 yrs / unlimited km + 8 yr battery", price:"₹65.0 L (approx.)", fuel:"Electric", transmission:"Single-speed (EV)", mileage:"528 km range (claimed)", seats:5},
+    {name:"Syros", body:"Compact SUV", zeroHundred:10.0, topSpeed:175, warranty:"3 yrs / unlimited km (ext. to 5–7 yrs)", price:"₹9.0 – 17.0 L", fuel:"Petrol / Diesel", transmission:"Manual / DCT", mileage:"19.0 kmpl", seats:5}
+  ]},
+  "Toyota": {color:"#8BD17C", models: [
+    {name:"Glanza", body:"Premium Hatchback", zeroHundred:12.0, topSpeed:165, warranty:"3 yrs / 1,00,000 km (ext. available)", price:"₹6.6 – 9.8 L", fuel:"Petrol", transmission:"Manual / AMT", mileage:"22.3 kmpl", seats:5},
+    {name:"Taisor", body:"Crossover", zeroHundred:11.0, topSpeed:175, warranty:"3 yrs / 1,00,000 km (ext. available)", price:"₹8.0 – 13.6 L", fuel:"Petrol", transmission:"Manual / AMT / AT", mileage:"24.8 kmpl", seats:5},
+    {name:"Urban Cruiser Hyryder", body:"Midsize SUV", zeroHundred:9.5, topSpeed:175, warranty:"3 yrs / 1,00,000 km (ext. available)", price:"₹11.1 – 20.5 L", fuel:"Petrol (Hybrid) / CNG", transmission:"Manual / e-CVT", mileage:"27.97 kmpl (hybrid)", seats:5},
+    {name:"Innova Hycross", body:"Premium MPV", zeroHundred:10.0, topSpeed:180, warranty:"3 yrs / 1,00,000 km (ext. available)", price:"₹19.8 – 31.8 L", fuel:"Petrol (Hybrid) / Diesel", transmission:"e-CVT / Manual", mileage:"23.24 kmpl (hybrid)", seats:"7 / 8"},
+    {name:"Fortuner", body:"3-Row SUV", zeroHundred:11.0, topSpeed:180, warranty:"3 yrs / 1,00,000 km (ext. available)", price:"₹34.0 – 51.0 L", fuel:"Diesel / Petrol", transmission:"Manual / AT", mileage:"14.2 kmpl", seats:7},
+    {name:"Camry", body:"Luxury Sedan (Hybrid)", zeroHundred:8.3, topSpeed:180, warranty:"3 yrs / 1,00,000 km (ext. available)", price:"₹48.9 L (approx.)", fuel:"Petrol (Hybrid)", transmission:"e-CVT", mileage:"25.5 kmpl", seats:5}
+  ]},
+  "Honda": {color:"#C792EA", models: [
+    {name:"Amaze", body:"Sedan", zeroHundred:14.0, topSpeed:165, warranty:"3 yrs / unlimited km (ext. to 5 yrs)", price:"₹8.0 – 11.0 L", fuel:"Petrol", transmission:"Manual / CVT", mileage:"19.5 kmpl", seats:5},
+    {name:"City", body:"Sedan", zeroHundred:11.0, topSpeed:180, warranty:"3 yrs / unlimited km (ext. to 5 yrs)", price:"₹11.9 – 16.9 L", fuel:"Petrol", transmission:"Manual / CVT", mileage:"18.4 kmpl", seats:5},
+    {name:"City e:HEV", body:"Hybrid Sedan", zeroHundred:10.5, topSpeed:180, warranty:"3 yrs / unlimited km (ext. to 5 yrs)", price:"₹19.9 – 21.9 L", fuel:"Petrol (Hybrid)", transmission:"e-CVT", mileage:"26.5 kmpl", seats:5},
+    {name:"Elevate", body:"Midsize SUV", zeroHundred:10.5, topSpeed:180, warranty:"3 yrs / unlimited km (ext. to 5 yrs)", price:"₹11.6 – 17.2 L", fuel:"Petrol", transmission:"Manual / CVT", mileage:"16.9 kmpl", seats:5}
+  ]},
+  "MG": {color:"#FF5C8A", models: [
+    {name:"Astor", body:"Compact SUV", zeroHundred:10.0, topSpeed:180, warranty:"3 yrs / unlimited km (ext. available)", price:"₹10.9 – 17.8 L", fuel:"Petrol", transmission:"Manual / CVT", mileage:"16.4 kmpl", seats:5},
+    {name:"Hector", body:"Midsize SUV", zeroHundred:11.0, topSpeed:175, warranty:"3 yrs / unlimited km (ext. available)", price:"₹14.0 – 21.6 L", fuel:"Petrol / Diesel", transmission:"Manual / DCT", mileage:"14.2 kmpl", seats:"5 / 6"},
+    {name:"Gloster", body:"3-Row SUV", zeroHundred:10.5, topSpeed:180, warranty:"3 yrs / unlimited km (ext. available)", price:"₹39.0 – 43.0 L", fuel:"Diesel", transmission:"8-speed Automatic", mileage:"13.6 kmpl", seats:7},
+    {name:"Comet EV", body:"Micro EV", zeroHundred:14.0, topSpeed:100, warranty:"3 yrs / unlimited km + 8 yr battery", price:"₹7.0 – 9.9 L", fuel:"Electric", transmission:"Single-speed (EV)", mileage:"230 km range (claimed)", seats:4},
+    {name:"ZS EV", body:"Electric SUV", zeroHundred:8.5, topSpeed:175, warranty:"3 yrs / unlimited km + 8 yr battery", price:"₹18.98 L (approx.)", fuel:"Electric", transmission:"Single-speed (EV)", mileage:"461 km range (claimed)", seats:5},
+    {name:"Windsor EV", body:"Electric Crossover", zeroHundred:9.7, topSpeed:130, warranty:"3 yrs / unlimited km + 8 yr battery", price:"₹13.5 – 17.5 L", fuel:"Electric", transmission:"Single-speed (EV)", mileage:"331 km range (claimed)", seats:5}
+  ]},
+  "Skoda": {color:"#6FCF97", models: [
+    {name:"Kushaq", body:"Compact SUV", zeroHundred:9.5, topSpeed:187, warranty:"4 yrs / 1,00,000 km (ext. to 6 yrs)", price:"₹11.6 – 20.0 L", fuel:"Petrol", transmission:"Manual / AT", mileage:"18.7 kmpl", seats:5},
+    {name:"Slavia", body:"Sedan", zeroHundred:9.6, topSpeed:187, warranty:"4 yrs / 1,00,000 km (ext. to 6 yrs)", price:"₹11.6 – 19.9 L", fuel:"Petrol", transmission:"Manual / AT", mileage:"19.2 kmpl", seats:5},
+    {name:"Kodiaq", body:"3-Row SUV", zeroHundred:7.5, topSpeed:205, warranty:"4 yrs / 1,00,000 km (ext. to 6 yrs)", price:"₹47.0 L (approx.)", fuel:"Petrol", transmission:"7-speed Automatic", mileage:"12.7 kmpl", seats:7},
+    {name:"Superb", body:"Executive Sedan", zeroHundred:6.7, topSpeed:224, warranty:"4 yrs / 1,00,000 km (ext. to 6 yrs)", price:"₹51.0 L (approx.)", fuel:"Petrol", transmission:"7-speed Automatic", mileage:"14.6 kmpl", seats:5}
+  ]},
+  "Volkswagen": {color:"#4DA6FF", models: [
+    {name:"Virtus", body:"Sedan", zeroHundred:9.2, topSpeed:187, warranty:"4 yrs / 1,00,000 km (ext. up to 10 yrs w/ service)", price:"₹11.9 – 19.9 L", fuel:"Petrol", transmission:"Manual / AT", mileage:"19.4 kmpl", seats:5},
+    {name:"Taigun", body:"Compact SUV", zeroHundred:9.2, topSpeed:187, warranty:"4 yrs / 1,00,000 km (ext. up to 10 yrs w/ service)", price:"₹12.0 – 20.5 L", fuel:"Petrol", transmission:"Manual / AT", mileage:"18.6 kmpl", seats:5},
+    {name:"Tiguan", body:"Premium SUV", zeroHundred:7.9, topSpeed:200, warranty:"4 yrs / 1,00,000 km (ext. up to 10 yrs w/ service)", price:"₹35.0 L (approx., last known)", fuel:"Petrol", transmission:"7-speed Automatic", mileage:"12.4 kmpl", seats:5}
+  ]},
+  "Renault": {color:"#FFA13D", models: [
+    {name:"Kwid", body:"Hatchback", zeroHundred:15.0, topSpeed:150, warranty:"2 yrs / unlimited km (ext. to 5 yrs)", price:"₹4.7 – 6.5 L", fuel:"Petrol", transmission:"5-speed Manual / AMT", mileage:"22.0 kmpl", seats:5},
+    {name:"Triber", body:"Crossover MPV", zeroHundred:14.0, topSpeed:155, warranty:"2 yrs / unlimited km (ext. to 5 yrs)", price:"₹6.4 – 9.0 L", fuel:"Petrol", transmission:"5-speed Manual / AMT", mileage:"19.0 kmpl", seats:7},
+    {name:"Kiger", body:"Compact SUV", zeroHundred:11.5, topSpeed:165, warranty:"2 yrs / unlimited km (ext. to 5 yrs)", price:"₹6.5 – 11.2 L", fuel:"Petrol", transmission:"Manual / AMT / CVT", mileage:"20.6 kmpl", seats:5}
+  ]},
+  "Citroën": {color:"#B7FF6E", models: [
+    {name:"C3", body:"Hatchback", zeroHundred:14.0, topSpeed:155, warranty:"2 yrs / unlimited km (ext. available)", price:"₹6.2 – 9.0 L", fuel:"Petrol / CNG", transmission:"5-speed Manual", mileage:"19.4 kmpl", seats:5},
+    {name:"eC3", body:"Electric Hatchback", zeroHundred:10.0, topSpeed:107, warranty:"3 yrs / 1,00,000 km + 7 yr battery", price:"₹12.9 – 13.5 L (approx.)", fuel:"Electric", transmission:"Single-speed (EV)", mileage:"320 km range (claimed)", seats:5},
+    {name:"C3 Aircross", body:"Compact SUV", zeroHundred:12.0, topSpeed:165, warranty:"2 yrs / unlimited km (ext. available)", price:"₹8.5 – 12.8 L", fuel:"Petrol", transmission:"Manual / AT", mileage:"19.3 kmpl", seats:"5 / 7"},
+    {name:"Basalt", body:"SUV Coupe", zeroHundred:11.0, topSpeed:170, warranty:"2 yrs / unlimited km (ext. available)", price:"₹8.0 – 13.0 L", fuel:"Petrol", transmission:"Manual / AT", mileage:"19.8 kmpl", seats:5}
+  ]}
+};
+
+// Pack capacity and manufacturer-certified/claimed range for each EV model.
+// The spec sheet hides this section for non-electric cars.
+const EV_BATTERY_OPTIONS = {
+  "Creta Electric": [
+    {capacity:"42 kWh", range:"420 km claimed"},
+    {capacity:"51.4 kWh", range:"510 km claimed"}
+  ],
+  "IONIQ 5": [{capacity:"84 kWh", range:"690 km claimed"}],
+  "Tiago EV": [
+    {capacity:"19.2 kWh", range:"250 km claimed"},
+    {capacity:"24 kWh", range:"315 km claimed"}
+  ],
+  "Nexon EV": [
+    {capacity:"30 kWh", range:"325 km claimed"},
+    {capacity:"40.5 kWh", range:"465 km claimed"}
+  ],
+  "Curvv EV": [
+    {capacity:"45 kWh", range:"430 km claimed"},
+    {capacity:"55 kWh", range:"502 km claimed"}
+  ],
+  "XUV400": [
+    {capacity:"34.5 kWh", range:"375 km claimed"},
+    {capacity:"39.4 kWh", range:"456 km claimed"}
+  ],
+  "BE 6": [
+    {capacity:"59 kWh", range:"557 km MIDC claimed"},
+    {capacity:"79 kWh", range:"683 km MIDC claimed"}
+  ],
+  "XEV 9e": [
+    {capacity:"59 kWh", range:"542 km MIDC claimed"},
+    {capacity:"79 kWh", range:"656 km MIDC claimed"}
+  ],
+  "XEV 9S": [
+    {capacity:"59 kWh", range:"Claim varies by variant"},
+    {capacity:"70 kWh", range:"Claim varies by variant"},
+    {capacity:"79 kWh", range:"Up to 679 km claimed"}
+  ],
+  "EV6": [{capacity:"84 kWh", range:"663 km MIDC claimed"}],
+  "Comet EV": [{capacity:"17.3 kWh", range:"230 km claimed"}],
+  "ZS EV": [{capacity:"50.3 kWh", range:"461 km claimed"}],
+  "Windsor EV": [
+    {capacity:"38 kWh", range:"332 km MIDC claimed"},
+    {capacity:"52.9 kWh", range:"449 km MIDC claimed"}
+  ],
+  "eC3": [{capacity:"29.2 kWh", range:"246 km claimed"}]
+};
+
+// ---------------- RENDER: BRAND GRID ----------------
+const brandGrid = document.getElementById('brandGrid');
+Object.keys(DATA).forEach(brand=>{
+  const tile = document.createElement('div');
+  tile.className = 'brand-tile';
+  tile.innerHTML = `
+    <div class="spotlight"></div>
+    <div class="hook"></div>
+    <div class="brand-name display">${brand}</div>
+    <div class="brand-count">${DATA[brand].models.length} models</div>
+  `;
+  tile.onclick = () => showModels(brand);
+  brandGrid.appendChild(tile);
+});
+
+let currentBrand = null;
+
+function showModels(brand){
+  currentBrand = brand;
+  document.getElementById('modelBrandEyebrow').textContent = brand + " Lineup";
+  document.getElementById('modelBrandTitle').textContent = "Choose your " + brand + " model";
+  const grid = document.getElementById('modelGrid');
+  grid.innerHTML = '';
+  const color = DATA[brand].color;
+  DATA[brand].models.forEach(m=>{
+    const bucket = bucketFor(m.body);
+    const isEV = m.fuel === 'Electric';
+    const card = document.createElement('div');
+    card.className = 'model-card' + (isEV ? ' is-ev' : '');
+    card.innerHTML = `
+      <div class="model-car-wrap">
+        ${carVisual(m, bucket, color, brand)}
+        ${isEV ? `<span class="ev-badge"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg>EV</span>` : ''}
+      </div>
+      <div class="body-tag">${m.body}</div>
+      <div class="quick-info">
+        <span class="quick-pill">${m.fuel}</span>
+        <span class="quick-pill">${m.seats} Seater</span>
+      </div>
+      <div class="model-name display">${m.name}</div>
+      <div class="model-cta">TAP THE CAR TO VIEW SPEC SHEET →</div>
+    `;
+    card.onclick = () => flyToSpec(card.querySelector('.model-car-wrap'), brand, m, bucket, color);
+    grid.appendChild(card);
+  });
+  goTo('modelScreen');
+}
+
+document.getElementById('backToModels').onclick = () => { if(currentBrand) showModels(currentBrand); };
+
+function fillSpecScreen(brand, m, bucket, color){
+  document.getElementById('specBrand').textContent = brand;
+  document.getElementById('specModel').textContent = m.name;
+  document.getElementById('specBodyTag').textContent = m.body;
+  document.getElementById('warrantyVal').textContent = m.warranty;
+  const batteryCard = document.getElementById('batteryCard');
+  const batteryOptions = document.getElementById('batteryOptions');
+  const packs = EV_BATTERY_OPTIONS[m.name] || [];
+  batteryCard.hidden = packs.length === 0;
+  batteryOptions.innerHTML = packs.map(pack => `
+    <div class="battery-option">
+      <div class="battery-pack">${pack.capacity}</div>
+      <div class="battery-range">${pack.range}</div>
+    </div>
+  `).join('');
+  document.getElementById('heroCarWrap').innerHTML = carVisual(m, bucket, color, brand);
+  document.getElementById('fuelVal').textContent = m.fuel;
+  document.getElementById('transVal').textContent = m.transmission;
+  document.getElementById('mileageVal').textContent = m.mileage;
+  document.getElementById('seatsVal').textContent = m.seats + (String(m.seats).includes('/') ? ' Seater' : '-Seater');
+}
+
+let isFlying = false;
+function flyToSpec(sourceWrap, brand, m, bucket, color){
+  if(isFlying) return;
+  isFlying = true;
+
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const card = sourceWrap.closest('.model-card');
+  card?.classList.add('is-selecting');
+
+  const showSpec = () => {
+    fillSpecScreen(brand, m, bucket, color);
+    goTo('specScreen');
+    runSpecAnimations(m);
+    const specScreen = document.getElementById('specScreen');
+    specScreen.classList.remove('is-entering');
+    void specScreen.offsetWidth;
+    specScreen.classList.add('is-entering');
+    setTimeout(() => specScreen.classList.remove('is-entering'), 550);
+    card?.classList.remove('is-selecting');
+    isFlying = false;
+  };
+
+  if(reduceMotion) showSpec();
+  else setTimeout(showSpec, 150);
+}
+
+// Precompute tick marks / labels along the gauge arc (static scale 0-230 km/h)
+function buildGaugeTicks(){
+  const group = document.getElementById('tickGroup');
+  const marks = [0,50,100,150,200];
+  const maxSpeed = 230;
+  let svg = '';
+  marks.forEach(v=>{
+    const f = v/maxSpeed;
+    const theta = (180*(1-f)) * Math.PI/180;
+    const xOuter = 100 + 92*Math.cos(theta), yOuter = 110 - 92*Math.sin(theta);
+    const xInner = 100 + 80*Math.cos(theta), yInner = 110 - 80*Math.sin(theta);
+    const xLabel = 100 + 60*Math.cos(theta), yLabel = 110 - 60*Math.sin(theta);
+    svg += `<line x1="${xInner.toFixed(1)}" y1="${yInner.toFixed(1)}" x2="${xOuter.toFixed(1)}" y2="${yOuter.toFixed(1)}" stroke="#4a505a" stroke-width="1.5"/>`;
+    svg += `<text x="${xLabel.toFixed(1)}" y="${yLabel.toFixed(1)}" class="tick-label" text-anchor="middle">${v}</text>`;
+  });
+  group.innerHTML = svg;
+}
+buildGaugeTicks();
+
+function runSpecAnimations(m){
+  const maxSpeed = 230;
+  const ratio = Math.min(m.topSpeed / maxSpeed, 1);
+  const needle = document.getElementById('needle');
+  const angle = -90 + (ratio * 180);
+  requestAnimationFrame(()=>{
+    needle.style.transform = `rotate(${angle}deg)`;
+    const arc = document.getElementById('gaugeArc');
+    const offset = 251 - (251 * ratio);
+    arc.style.transition = 'stroke-dashoffset 1.15s cubic-bezier(.34,1.56,.64,1)';
+    arc.style.strokeDashoffset = offset;
+  });
+
+  animateNumber('topSpeedVal', 0, m.topSpeed, 950, v=>Math.round(v));
+  animateNumber('zeroToHundred', 0, m.zeroHundred, 950, v=>v.toFixed(1));
+
+  const priceStrip = document.getElementById('priceStrip');
+  priceStrip.innerHTML = '';
+  m.price.split('').forEach((ch,i)=>{
+    const box = document.createElement('div');
+    box.className = 'odometer-box';
+    box.textContent = ch === ' ' ? '\u00A0' : ch;
+    box.style.animationDelay = (i*0.022)+'s';
+    if(ch === ' ' || ch === '–' || ch === '(' || ch === ')'){
+      box.style.background = 'transparent'; box.style.border='none'; box.style.boxShadow='none'; box.style.textShadow='none'; box.style.color = 'var(--muted)';
+    }
+    priceStrip.appendChild(box);
+  });
+}
+
+function animateNumber(id, from, to, duration, formatFn){
+  const el = document.getElementById(id);
+  const start = performance.now();
+  function tick(now){
+    const p = Math.min((now-start)/duration, 1);
+    const eased = 1 - Math.pow(1-p, 3);
+    el.textContent = formatFn(from + (to-from)*eased);
+    if(p<1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+function goTo(screenId){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(screenId).classList.add('active');
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+document.getElementById('startBtn').onclick = () => {
+  const overlay = document.getElementById('sweepOverlay');
+  overlay.classList.add('active');
+  const n1 = document.getElementById('sweepNeedle1');
+  const n2 = document.getElementById('sweepNeedle2');
+  n1.style.transition = 'transform 0.6s ease-in-out';
+  n2.style.transition = 'transform 0.6s ease-in-out';
+  requestAnimationFrame(()=>{ n1.style.transform = 'rotate(150deg)'; n2.style.transform = 'rotate(150deg)'; });
+  setTimeout(()=>{ n1.style.transform = 'rotate(-10deg)'; n2.style.transform = 'rotate(-10deg)'; }, 650);
+  setTimeout(()=>{ overlay.classList.remove('active'); goTo('brandScreen'); }, 1350);
+};
+</script>
+</body>
+</html>
